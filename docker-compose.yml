@@ -1,0 +1,16 @@
+version: "3.9"
+services:
+  postgres:
+    image: postgres:16
+    container_name: impression_postgres
+    environment:
+      POSTGRES_DB: impression
+      POSTGRES_USER: impression
+      POSTGRES_PASSWORD: impression
+    ports:
+      - "5432:5432"
+    volumes:
+      - donnees_postgres:/var/lib/postgresql/data
+
+volumes:
+  donnees_postgres:

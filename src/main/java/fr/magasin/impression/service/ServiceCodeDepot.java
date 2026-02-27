@@ -60,13 +60,14 @@ public class ServiceCodeDepot {
 
     private void genererEtEnregistrerNouveauCode() {
         CodeDepot ligne = obtenirLigne();
-        ligne.setValeur(genererCode6Chiffres());
+        ligne.setValeur(genererCode4Chiffres());
         ligne.setDateGeneration(LocalDate.now(ZONE));
         codeDepotRepository.save(ligne);
     }
 
-    private String genererCode6Chiffres() {
-        return String.format("%06d", alea.nextInt(1_000_000));
+    /** Code à 4 chiffres : plus simple à communiquer au client */
+    private String genererCode4Chiffres() {
+        return String.format("%04d", alea.nextInt(10_000));
     }
 
     private CodeDepot obtenirLigne() {
@@ -74,7 +75,7 @@ public class ServiceCodeDepot {
                 .orElseGet(() -> {
                     CodeDepot c = new CodeDepot();
                     c.setId(ID_LIGNE);
-                    c.setValeur("000000");
+                    c.setValeur("0000");
                     c.setDateGeneration(LocalDate.now(ZONE));
                     return codeDepotRepository.save(c);
                 });

@@ -25,11 +25,16 @@ public class FichierDepot {
     @Column(nullable = false)
     private long taille;
 
-    @Column(name = "chemin_stockage", nullable = false)
+    @Column(name = "chemin_stockage")
     private String cheminStockage;
 
     @Column(name = "empreinte_sha256", length = 64)
     private String empreinteSha256;
+
+    /** Contenu binaire du fichier stocké en base (bytea) */
+    @Column(name = "contenu")
+    @Basic(fetch = FetchType.LAZY)
+    private byte[] contenu;
 
     @Column(name = "cree_le", nullable = false)
     private Instant creeLe;
@@ -58,4 +63,7 @@ public class FichierDepot {
 
     public String getEmpreinteSha256() { return empreinteSha256; }
     public void setEmpreinteSha256(String empreinteSha256) { this.empreinteSha256 = empreinteSha256; }
+
+    public byte[] getContenu() { return contenu; }
+    public void setContenu(byte[] contenu) { this.contenu = contenu; }
 }

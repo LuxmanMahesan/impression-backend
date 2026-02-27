@@ -4,13 +4,11 @@ import fr.magasin.impression.repository.DepotRepository;
 import fr.magasin.impression.repository.FichierDepotRepository;
 import fr.magasin.impression.model.FichierDepot;
 import fr.magasin.impression.service.ServiceCodeDepot;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
 
@@ -49,7 +47,7 @@ public class ControllerAdmin {
     }
 
     @GetMapping("/depots/{idDepot}/fichiers/{idFichier}/telechargement")
-    public ResponseEntity<Resource> telecharger(@PathVariable UUID idDepot, @PathVariable UUID idFichier) throws Exception {
+    public ResponseEntity<byte[]> telecharger(@PathVariable UUID idDepot, @PathVariable UUID idFichier) {
         FichierDepot fichier = fichierDepotRepository.findById(idFichier)
                 .orElseThrow(() -> new IllegalArgumentException("Fichier introuvable"));
 
@@ -57,13 +55,16 @@ public class ControllerAdmin {
             throw new IllegalArgumentException("Fichier ne correspond pas au depot");
         }
 
-        Path chemin = Path.of(fichier.getCheminStockage());
-        Resource ressource = new UrlResource(chemin.toUri());
+        byte[] contenu = fichier.getContenu();
+        if (contenu == null || contenu.length == 0) {
+            throw new IllegalStateException("Contenu du fichier absent en base");
+        }
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fichier.getNomOriginal() + "\"")
-                .header(HttpHeaders.CONTENT_TYPE, fichier.getTypeMime())
-                .body(ressource);
+                .contentType(MediaType.parseMediaType(fichier.getTypeMime()))
+                .contentLength(contenu.length)
+                .body(contenu);
     }
 
     public record ReponseCodeCourant(String code) {}

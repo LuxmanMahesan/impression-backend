@@ -1,49 +1,40 @@
 package fr.magasin.impression.service;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
-import java.nio.file.*;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.Set;
-import java.util.UUID;
 
 @Service
 public class ServiceStockageFichiers {
 
     private static final Set<String> TYPES_INTERDITS_PREFIXE = Set.of("video/");
 
-    @Value("${app.stockage.racine:stockage}")
-    private String racine;
-
-    public ResultatStockage enregistrer(UUID idDepot, MultipartFile fichier) {
+    /**
+     * Lit le fichier uploadé, calcule le SHA-256 et renvoie les octets + le hash.
+     * Plus aucune écriture sur le disque : tout passe en base.
+     */
+    public ResultatStockage lireEtHasher(MultipartFile fichier) {
         verifierFichier(fichier);
 
-        String nomOriginal = fichier.getOriginalFilename() == null ? "fichier" : fichier.getOriginalFilename();
-        String nomNettoye = nomOriginal.replaceAll("[^a-zA-Z0-9._-]", "_");
-
-        UUID idFichier = UUID.randomUUID();
-        Path dossierDepot = Paths.get(racine, "depots", idDepot.toString());
-        Path destination = dossierDepot.resolve(idFichier + "_" + nomNettoye);
-
         try {
-            Files.createDirectories(dossierDepot);
-
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] contenu;
+
             try (InputStream in = fichier.getInputStream();
                  DigestInputStream dis = new DigestInputStream(in, digest)) {
-                Files.copy(dis, destination, StandardCopyOption.REPLACE_EXISTING);
+                contenu = dis.readAllBytes();
             }
 
             String sha256 = HexFormat.of().formatHex(digest.digest());
-            return new ResultatStockage(destination.toAbsolutePath().toString(), sha256);
+            return new ResultatStockage(contenu, sha256);
 
         } catch (Exception e) {
-            throw new RuntimeException("Echec stockage fichier", e);
+            throw new RuntimeException("Echec lecture fichier", e);
         }
     }
 
@@ -59,5 +50,5 @@ public class ServiceStockageFichiers {
         }
     }
 
-    public record ResultatStockage(String chemin, String sha256) {}
+    public record ResultatStockage(byte[] contenu, String sha256) {}
 }

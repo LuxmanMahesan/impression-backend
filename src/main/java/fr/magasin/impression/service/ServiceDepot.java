@@ -51,27 +51,36 @@ public class ServiceDepot {
         }
 
         return fichiers.stream().map(f -> {
-            var resultat = serviceStockageFichiers.enregistrer(idDepot, f);
+            var resultat = serviceStockageFichiers.lireEtHasher(f);
 
             FichierDepot fd = new FichierDepot();
             fd.setDepot(depot);
             fd.setNomOriginal(f.getOriginalFilename() == null ? "fichier" : f.getOriginalFilename());
             fd.setTypeMime(f.getContentType() == null ? "application/octet-stream" : f.getContentType());
             fd.setTaille(f.getSize());
-            fd.setCheminStockage(resultat.chemin());
+            fd.setContenu(resultat.contenu());
             fd.setEmpreinteSha256(resultat.sha256());
+            // chemin_stockage laissé null (stockage en base)
 
             fichierDepotRepository.save(fd);
             return fd.getId();
         }).toList();
     }
 
+    /**
+     * Validation idempotente : si le dépôt est déjà VALIDE, on renvoie OK sans erreur.
+     */
     public UUID validerDepot(UUID idDepot) {
         Depot depot = depotRepository.findById(idDepot)
                 .orElseThrow(() -> new IllegalArgumentException("Depot introuvable"));
 
+        if ("VALIDE".equals(depot.getStatut())) {
+            // Déjà validé → idempotent, pas d'erreur
+            return depot.getId();
+        }
+
         if (!"BROUILLON".equals(depot.getStatut())) {
-            throw new IllegalStateException("Depot deja valide");
+            throw new IllegalStateException("Depot dans un statut inattendu : " + depot.getStatut());
         }
 
         depot.setStatut("VALIDE");

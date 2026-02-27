@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
-@Transactional
 public class ServiceDepot {
 
     private final ServiceCodeDepot serviceCodeDepot;
@@ -33,15 +32,24 @@ public class ServiceDepot {
         this.fichierDepotRepository = fichierDepotRepository;
     }
 
+    /**
+     * Vérifie le code puis crée un nouveau dépôt.
+     * La vérification du code se fait dans sa propre transaction (REQUIRES_NEW dans ServiceCodeDepot)
+     * donc pas de risque de deadlock.
+     */
+    @Transactional
     public UUID demarrerDepot(String code) {
+        // Cet appel ouvre et ferme sa propre transaction (REQUIRES_NEW + readOnly)
         serviceCodeDepot.verifierCodeOuEchouer(code);
 
+        // Puis on écrit dans la transaction courante
         Depot depot = new Depot();
         depot.setStatut("BROUILLON");
         depotRepository.save(depot);
         return depot.getId();
     }
 
+    @Transactional
     public List<UUID> ajouterFichiers(UUID idDepot, List<MultipartFile> fichiers) {
         Depot depot = depotRepository.findById(idDepot)
                 .orElseThrow(() -> new IllegalArgumentException("Depot introuvable"));
@@ -60,22 +68,18 @@ public class ServiceDepot {
             fd.setTaille(f.getSize());
             fd.setContenu(resultat.contenu());
             fd.setEmpreinteSha256(resultat.sha256());
-            // chemin_stockage laissé null (stockage en base)
 
             fichierDepotRepository.save(fd);
             return fd.getId();
         }).toList();
     }
 
-    /**
-     * Validation idempotente : si le dépôt est déjà VALIDE, on renvoie OK sans erreur.
-     */
+    @Transactional
     public UUID validerDepot(UUID idDepot) {
         Depot depot = depotRepository.findById(idDepot)
                 .orElseThrow(() -> new IllegalArgumentException("Depot introuvable"));
 
         if ("VALIDE".equals(depot.getStatut())) {
-            // Déjà validé → idempotent, pas d'erreur
             return depot.getId();
         }
 

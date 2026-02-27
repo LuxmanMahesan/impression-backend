@@ -5,6 +5,7 @@ import fr.magasin.impression.model.CodeDepot;
 import jakarta.annotation.PostConstruct;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
@@ -12,7 +13,6 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 
 @Service
-@Transactional
 public class ServiceCodeDepot {
 
     private static final short ID_LIGNE = 1;
@@ -30,54 +30,76 @@ public class ServiceCodeDepot {
         assurerCodeDuJour();
     }
 
-    public String obtenirCodeCourant() {
-        return obtenirLigne().getValeur();
-    }
-
+    /**
+     * Vérifie le code saisi. Ne fait AUCUNE écriture.
+     * REQUIRES_NEW pour ne pas interférer avec la transaction appelante.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public void verifierCodeOuEchouer(String codeSaisi) {
         String propre = codeSaisi == null ? "" : codeSaisi.trim();
         if (propre.isEmpty()) {
             throw new IllegalArgumentException("Code obligatoire");
         }
-        String attendu = obtenirCodeCourant();
+        String attendu = lireCodeCourant();
         if (!attendu.equals(propre)) {
             throw new IllegalArgumentException("Code invalide");
         }
     }
 
+    /**
+     * Retourne le code courant. Utilisé par l'admin.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
+    public String obtenirCodeCourant() {
+        return lireCodeCourant();
+    }
+
     @Scheduled(cron = "0 0 0 * * *", zone = "Europe/Paris")
+    @Transactional
     public void tournerCodeChaqueNuit() {
         genererEtEnregistrerNouveauCode();
     }
 
-    private void assurerCodeDuJour() {
-        CodeDepot ligne = obtenirLigne();
-        LocalDate aujourdHui = LocalDate.now(ZONE);
-        if (!aujourdHui.equals(ligne.getDateGeneration())) {
-            genererEtEnregistrerNouveauCode();
+    // ── méthodes privées ──
+
+    private String lireCodeCourant() {
+        return codeDepotRepository.findById(ID_LIGNE)
+                .map(CodeDepot::getValeur)
+                .orElse("0000");
+    }
+
+    @Transactional
+    public void assurerCodeDuJour() {
+        var opt = codeDepotRepository.findById(ID_LIGNE);
+        if (opt.isEmpty()) {
+            // Première exécution : créer la ligne
+            CodeDepot c = new CodeDepot();
+            c.setId(ID_LIGNE);
+            c.setValeur(genererCode4Chiffres());
+            c.setDateGeneration(LocalDate.now(ZONE));
+            codeDepotRepository.save(c);
+        } else {
+            CodeDepot ligne = opt.get();
+            LocalDate aujourdHui = LocalDate.now(ZONE);
+            if (!aujourdHui.equals(ligne.getDateGeneration())) {
+                ligne.setValeur(genererCode4Chiffres());
+                ligne.setDateGeneration(aujourdHui);
+                codeDepotRepository.save(ligne);
+            }
         }
     }
 
     private void genererEtEnregistrerNouveauCode() {
-        CodeDepot ligne = obtenirLigne();
-        ligne.setValeur(genererCode4Chiffres());
-        ligne.setDateGeneration(LocalDate.now(ZONE));
-        codeDepotRepository.save(ligne);
+        var opt = codeDepotRepository.findById(ID_LIGNE);
+        if (opt.isPresent()) {
+            CodeDepot ligne = opt.get();
+            ligne.setValeur(genererCode4Chiffres());
+            ligne.setDateGeneration(LocalDate.now(ZONE));
+            codeDepotRepository.save(ligne);
+        }
     }
 
-    /** Code à 4 chiffres : plus simple à communiquer au client */
     private String genererCode4Chiffres() {
         return String.format("%04d", alea.nextInt(10_000));
-    }
-
-    private CodeDepot obtenirLigne() {
-        return codeDepotRepository.findById(ID_LIGNE)
-                .orElseGet(() -> {
-                    CodeDepot c = new CodeDepot();
-                    c.setId(ID_LIGNE);
-                    c.setValeur("0000");
-                    c.setDateGeneration(LocalDate.now(ZONE));
-                    return codeDepotRepository.save(c);
-                });
     }
 }

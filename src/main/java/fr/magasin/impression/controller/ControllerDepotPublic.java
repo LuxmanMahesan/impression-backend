@@ -25,32 +25,32 @@ public class ControllerDepotPublic {
     @PostMapping("/demarrer")
     public ReponseDepotDemarre demarrer(@RequestBody RequeteCode requete) {
         log.info(">>> POST /api/depots/demarrer — code reçu : [{}]", requete.code());
-        UUID idDepot = serviceDepot.demarrerDepot(requete.code());
-        log.info("<<< Dépôt créé : {}", idDepot);
-        return new ReponseDepotDemarre(idDepot);
+        String codePublic = serviceDepot.demarrerDepot(requete.code());
+        log.info("<<< Dépôt créé : {}", codePublic);
+        return new ReponseDepotDemarre(codePublic);
     }
 
-    @PostMapping(value = "/{idDepot}/fichiers", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/{codePublic}/fichiers", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ReponseAjoutFichiers ajouterFichiers(
-            @PathVariable UUID idDepot,
+            @PathVariable String codePublic,
             @RequestParam("fichiers") List<MultipartFile> fichiers
     ) {
-        log.info(">>> POST /api/depots/{}/fichiers — {} fichier(s)", idDepot, fichiers.size());
-        List<UUID> ids = serviceDepot.ajouterFichiers(idDepot, fichiers);
+        log.info(">>> POST /api/depots/{}/fichiers — {} fichier(s)", codePublic, fichiers.size());
+        List<UUID> ids = serviceDepot.ajouterFichiers(codePublic, fichiers);
         log.info("<<< {} fichier(s) ajouté(s)", ids.size());
         return new ReponseAjoutFichiers(ids);
     }
 
-    @PostMapping("/{idDepot}/valider")
-    public ReponseDepotValide valider(@PathVariable UUID idDepot) {
-        log.info(">>> POST /api/depots/{}/valider", idDepot);
-        UUID id = serviceDepot.validerDepot(idDepot);
-        log.info("<<< Dépôt validé : {}", id);
-        return new ReponseDepotValide(id);
+    @PostMapping("/{codePublic}/valider")
+    public ReponseDepotValide valider(@PathVariable String codePublic) {
+        log.info(">>> POST /api/depots/{}/valider", codePublic);
+        String code = serviceDepot.validerDepot(codePublic);
+        log.info("<<< Dépôt validé : {}", code);
+        return new ReponseDepotValide(code);
     }
 
     public record RequeteCode(String code) {}
-    public record ReponseDepotDemarre(UUID idDepot) {}
+    public record ReponseDepotDemarre(String idDepot) {}
     public record ReponseAjoutFichiers(List<UUID> idsFichiers) {}
-    public record ReponseDepotValide(UUID idDepot) {}
+    public record ReponseDepotValide(String idDepot) {}
 }

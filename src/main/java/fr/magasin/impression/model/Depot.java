@@ -12,6 +12,10 @@ public class Depot {
     @GeneratedValue
     private UUID id;
 
+    /** Code court à 5 caractères affiché au client (ex: "A3K9Z") */
+    @Column(name = "code_public", nullable = false, unique = true, length = 5)
+    private String codePublic;
+
     @Column(nullable = false, length = 20)
     private String statut;
 
@@ -28,6 +32,10 @@ public class Depot {
     }
 
     public UUID getId() { return id; }
+
+    public String getCodePublic() { return codePublic; }
+    public void setCodePublic(String codePublic) { this.codePublic = codePublic; }
+
     public String getStatut() { return statut; }
     public void setStatut(String statut) { this.statut = statut; }
 

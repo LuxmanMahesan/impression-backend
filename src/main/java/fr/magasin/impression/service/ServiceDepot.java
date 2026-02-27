@@ -8,12 +8,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
 @Service
 public class ServiceDepot {
+
+    private static final String ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    private static final int LONGUEUR_CODE = 5;
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     private final ServiceCodeDepot serviceCodeDepot;
     private final ServiceStockageFichiers serviceStockageFichiers;
@@ -32,27 +37,26 @@ public class ServiceDepot {
         this.fichierDepotRepository = fichierDepotRepository;
     }
 
-    /**
-     * Vérifie le code puis crée un nouveau dépôt.
-     * La vérification du code se fait dans sa propre transaction (REQUIRES_NEW dans ServiceCodeDepot)
-     * donc pas de risque de deadlock.
-     */
     @Transactional
-    public UUID demarrerDepot(String code) {
-        // Cet appel ouvre et ferme sa propre transaction (REQUIRES_NEW + readOnly)
+    public String demarrerDepot(String code) {
         serviceCodeDepot.verifierCodeOuEchouer(code);
 
-        // Puis on écrit dans la transaction courante
         Depot depot = new Depot();
         depot.setStatut("BROUILLON");
+        depot.setCodePublic(genererCodePublicUnique());
         depotRepository.save(depot);
-        return depot.getId();
+
+        return depot.getCodePublic();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Depot> listerTousLesDepots() {
+        return depotRepository.findAllByOrderByCreeLeDesc();
     }
 
     @Transactional
-    public List<UUID> ajouterFichiers(UUID idDepot, List<MultipartFile> fichiers) {
-        Depot depot = depotRepository.findById(idDepot)
-                .orElseThrow(() -> new IllegalArgumentException("Depot introuvable"));
+    public List<UUID> ajouterFichiers(String codePublic, List<MultipartFile> fichiers) {
+        Depot depot = trouverParCodePublic(codePublic);
 
         if (!"BROUILLON".equals(depot.getStatut())) {
             throw new IllegalStateException("Depot deja valide");
@@ -75,12 +79,11 @@ public class ServiceDepot {
     }
 
     @Transactional
-    public UUID validerDepot(UUID idDepot) {
-        Depot depot = depotRepository.findById(idDepot)
-                .orElseThrow(() -> new IllegalArgumentException("Depot introuvable"));
+    public String validerDepot(String codePublic) {
+        Depot depot = trouverParCodePublic(codePublic);
 
         if ("VALIDE".equals(depot.getStatut())) {
-            return depot.getId();
+            return depot.getCodePublic();
         }
 
         if (!"BROUILLON".equals(depot.getStatut())) {
@@ -91,6 +94,35 @@ public class ServiceDepot {
         depot.setValideLe(Instant.now());
         depotRepository.save(depot);
 
-        return depot.getId();
+        return depot.getCodePublic();
+    }
+
+    @Transactional
+    public void supprimerDepot(String codePublic) {
+        Depot depot = trouverParCodePublic(codePublic);
+        depotRepository.delete(depot);
+    }
+
+    private Depot trouverParCodePublic(String codePublic) {
+        return depotRepository.findByCodePublic(codePublic.toUpperCase().trim())
+                .orElseThrow(() -> new IllegalArgumentException("Depot introuvable"));
+    }
+
+    private String genererCodePublicUnique() {
+        for (int tentative = 0; tentative < 100; tentative++) {
+            String code = genererCode();
+            if (!depotRepository.existsByCodePublic(code)) {
+                return code;
+            }
+        }
+        throw new IllegalStateException("Impossible de generer un code unique apres 100 tentatives");
+    }
+
+    private String genererCode() {
+        StringBuilder sb = new StringBuilder(LONGUEUR_CODE);
+        for (int i = 0; i < LONGUEUR_CODE; i++) {
+            sb.append(ALPHABET.charAt(RANDOM.nextInt(ALPHABET.length())));
+        }
+        return sb.toString();
     }
 }
